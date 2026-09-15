@@ -40,7 +40,16 @@ import com.example.plantillabcp.ui.viewmodel.ApiViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ApiScreen(viewModel: ApiViewModel = viewModel(),onNavigateBack: () -> Unit = {}) {
+fun ApiScreen(
+    // 1. INYECCIÓN DEL VIEWMODEL Y DESACOPLAMIENTO:
+    // viewModel() obtiene o retiene la instancia del ciclo de vida.
+    // onNavigateBack desacopla la pantalla del enrutador raíz (MainActivity).
+    viewModel: ApiViewModel = viewModel(),
+    onNavigateBack: () -> Unit = {}
+) {
+    // 2. OBSERVACIÓN REACTIVA DE FLUJOS ASÍNCRONOS:
+    // collectAsState() suscribe la vista al StateFlow del ViewModel.
+    // Transforma cada emisión en un State de Compose que gatilla recomposición automática.
     val state by viewModel.uiState.collectAsState()
 
     Scaffold(
@@ -48,48 +57,71 @@ fun ApiScreen(viewModel: ApiViewModel = viewModel(),onNavigateBack: () -> Unit =
             TopAppBar(
                 title = { Text("Consumo API REST") },
                 navigationIcon = {
-                    IconButton (onClick = onNavigateBack) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Regresar")
                     }
                 }
             )
         }
     ) { innerPadding ->
+        // 3. CONTENEDOR BASE BOX:
+        // Permite centrar loaders o errores de forma absoluta usando Alignment.Center.
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding) // Respeta la altura del TopAppBar para no solapar vistas
         ) {
+            // 4. MÁQUINA DE ESTADOS FINITOS (Pattern Matching con Sealed Class/Interface):
+            // Smart cast automático: según el subtipo de ApiUiState, el compilador expone
+            // solo las variables pertinentes (message en Error, posts en Success).
             when (val currentState = state) {
+                // ESTADO 1: CARGA (Feedback visual asíncrono)
                 is ApiUiState.Loading -> {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
+
+                // ESTADO 2: ERROR (Manejo de excepciones de red/HTTP con reintento)
                 is ApiUiState.Error -> {
                     Column(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(text = currentState.message, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            text = currentState.message,
+                            color = MaterialTheme.colorScheme.error
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
+                        // Dispara una nueva corrutina en el ViewModel para reintentar la llamada Retrofit
                         Button(onClick = { viewModel.loadPosts() }) {
                             Text("Reintentar")
                         }
                     }
                 }
+
+                // ESTADO 3: ÉXITO (Pintado reactivo de la colección recibida)
                 is ApiUiState.Success -> {
-                    LazyColumn (
+                    // LazyColumn recicla componentes en memoria, renderizando solo lo visible
+                    LazyColumn(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Tip para entrevista: aquí es buena práctica añadir key = { post.id }
+                        // para optimizar el diffing y rendimiento de la lista.
                         items(currentState.posts) { post ->
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(text = post.title, style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        text = post.title,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    Text(text = post.body, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        text = post.body,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
                                 }
                             }
                         }

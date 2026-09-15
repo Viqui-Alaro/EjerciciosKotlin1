@@ -15,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+// 1. MODELO INMUTABLE PARA LA UI: Representa un item desacoplado de la base de datos o red.
+// El badge es nullable (String?) para soportar elementos sin etiqueta.
 data class ItemUiModel(
     val id: String,
     val title: String,
@@ -25,13 +27,18 @@ data class ItemUiModel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GenericListScreen(
+    // 2. PARÁMETROS STATELESS (Sin estado interno rígido):
+    // La pantalla recibe datos inmutables y emite eventos hacia arriba mediante lambdas (State Hoisting).
     items: List<ItemUiModel> = emptyList(),
     onItemClick: (String) -> Unit = {},
     onAddNewClick: () -> Unit = {},
-    onNavigateToApi: () -> Unit = {} // <-- 1. Callback hacia la pantalla de API
+    onNavigateToApi: () -> Unit = {} // Callback para delegar la navegación a MainActivity
 ) {
+    // 3. ESTADO DE BÚSQUEDA: Mantiene el texto del buscador durante recomposiciones simples.
     var searchQuery by remember { mutableStateOf("") }
 
+    // 4. OPTIMIZACIÓN DE RENDIMIENTO CON REMEMBER (Keys):
+    // Evita recalcular el filtro en cada frame; solo se reejecuta si cambian 'searchQuery' o 'items'.
     val filteredItems = remember(searchQuery, items) {
         if (searchQuery.isBlank()) items
         else items.filter {
@@ -40,12 +47,13 @@ fun GenericListScreen(
         }
     }
 
+    // 5. SCAFFOLD MATERIAL 3: Estructura base que gestiona barras, FABs y áreas de contenido.
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Registros Locales") },
                 actions = {
-                    // Botón para navegar al consumo de servicio REST
+                    // Botón para saltar al flujo del consumo API REST
                     FilledTonalButton(
                         onClick = onNavigateToApi,
                         modifier = Modifier.padding(end = 8.dp)
@@ -67,11 +75,13 @@ fun GenericListScreen(
             }
         }
     ) { innerPadding ->
+        // innerPadding: Evita que el contenido quede solapado debajo del TopAppBar
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Buscador reactivo
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -83,6 +93,8 @@ fun GenericListScreen(
                 singleLine = true
             )
 
+            // 6. MANEJO DE ESTADO VACÍO (Empty State):
+            // Si la búsqueda no coincide con nada, muestra un mensaje descriptivo en lugar de una pantalla en blanco.
             if (filteredItems.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -95,16 +107,20 @@ fun GenericListScreen(
                     )
                 }
             } else {
+                // 7. LAZYCOLUMN (Equivalente al RecyclerView clásico):
+                // Recicla y dibuja solo los elementos visibles en pantalla para optimizar memoria.
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // key = { it.id }: Identificador único esencial para que Compose optimice
+                    // animaciones, reordenamientos y eliminaciones sin redibujar toda la lista.
                     items(filteredItems, key = { it.id }) { item ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onItemClick(item.id) },
+                                .clickable { onItemClick(item.id) }, // Propaga el ID seleccionado
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Row(
@@ -122,6 +138,7 @@ fun GenericListScreen(
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
+                                // Renderizado condicional del Badge si no es nulo
                                 item.badge?.let {
                                     Badge { Text(it) }
                                 }
